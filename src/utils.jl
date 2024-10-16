@@ -140,6 +140,7 @@ function sincu(z::Number)
     return 1.
   else
     return sin(z) / z
+  end
 end
 
 """
@@ -156,5 +157,6 @@ function sinch(z::Number)
     return 1.
   else
     return sinh(z) / z
+  end
 end
 
