@@ -117,3 +117,31 @@ end
 #  return sr_pc(e_rest, e_kin) / (ne * clight)
 #end
 
+"""
+    sincu(z)
+
+Compute the unnormalized sinc function, ``\\operatorname{sincu}(z) = \\operatorname{sin}(z) / z``,
+with a correct treatment of the apparent singularity at the origin.
+"""
+function sincu(z::Number)
+  threshold = sqrt(2eps())
+  if abs(z) < threshold
+    return 1.
+  else
+    return sin(z) / z
+end
+
+"""
+    sinch(z)
+
+Compute the hyperbolic sinc function, ``\\operatorname{sinch}(z) = \\operatorname{sinh}(z) / z``,
+with a correct treatment of the apparent singularity at the origin.
+"""
+function sinch(z::Number)
+  threshold = sqrt(2eps())
+  if abs(z) < threshold
+    return 1.
+  else
+    return sinh(z) / z
+end
+
