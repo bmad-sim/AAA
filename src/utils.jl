@@ -121,7 +121,7 @@ end
     sincu(z)
 
 Compute the unnormalized sinc function, ``\\operatorname{sincu}(z) = \\operatorname{sin}(z) / z``,
-with a correct treatment of the apparent singularity at the origin.
+with a correct treatment of the removable singularity at the origin.
 """
 function sincu(z::Number)
   threshold = sqrt(2eps())
@@ -135,7 +135,7 @@ end
     sinch(z)
 
 Compute the hyperbolic sinc function, ``\\operatorname{sinch}(z) = \\operatorname{sinh}(z) / z``,
-with a correct treatment of the apparent singularity at the origin.
+with a correct treatment of the removable singularity at the origin.
 """
 function sinch(z::Number)
   threshold = sqrt(2eps())
