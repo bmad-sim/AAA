@@ -120,6 +120,13 @@ end # function trackQuadMx
     trackQuadK!(beamf::Beam, beami::Beam, s::Float64)
 
 track "remaining part" of quadrupole, a position kick
+
+### Implementation
+The common factor that appears in the expressions for `zf.x` and `zf.y`
+originally had the generic form ``1 / \\sqrt{1 - A} - 1``, which suffers a
+loss of precision when ``|A| \\ll 1``. To combat that proplem, we rewrite
+it in the form ``A / (1 - A + \\sqrt{1-A})``---more complicated, but far
+more accurate.
 """
 function trackQuadK!(beamf::Beam, beami::Beam, s::Float64)
   zi = beami.z
