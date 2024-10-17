@@ -133,12 +133,12 @@ function trackQuadK!(beamf::Beam, beami::Beam, s::Float64)
   @. p_red = 1 + zi.pz  # reduced momentum, P/P0 = 1 + δ
   @. xp = px / p_red
   @. yp = py / p_red
+  @. rp2 = xp^2 + yp^2
 
-  @. zf.x  = zi.x + s * zi.x * (1 / (sqrt(1 - (xp^2 + yp^2)) - 1))
-  @. zf.y  = zi.y + s * zi.y * (1 / (sqrt(1 - (xp^2 + yp^2)) - 1))
-  @. zf.z  = zi.z - s * zi.y * (1 / (sqrt(1 - (xp^2 + yp^2)) - 1)
-                                - (xp^2 + yp^2) / 2
-                                - 1 / (β0 * sqrt(1 + (tilde_m / p_red)^2)))
+  @. zf.x  = zi.x + s * xp * rp2 / (1 - rp2 + sqrt(1 - rp2))
+  @. zf.y  = zi.y + s * yp * rp2 / (1 - rp2 + sqrt(1 - rp2))
+  @. zf.z  = zi.z - s * (1 / sqrt(1 - rp2) - rp2 / 2
+                         - 1 / (β0 * sqrt(1 + (tilde_m / p_red)^2)))
   @. zf.px = zi.px
   @. zf.py = zi.py
   @. zf.pz = zi.pz
