@@ -33,15 +33,17 @@ function track!(ele::Drift, beamf::Beam, beami::Beam)
   zi = beami.z
   zf = beamf.z
 
-  tilde_m = mass(beami.species) / sr_pc(mass(beami.species), beami.beta_gamma_0)
+  tilde_m = 1 / beami.beta_gamma_0
+  beta_0 = sr_beta(beami.beta_gamma_0)
 
-  @. ps = sqrt((1.0 + zi.pz)^2 - zi.px^2 - zi.py^2)
+  @. ps = sqrt((1.0 + zi.pz)^2 - (zi.px^2 + zi.py^2))
   @. et = sqrt((1.0 + zi.pz)^2 + tilde_m^2)
+
   @. zf.x = zi.x + zi.px * L / ps
   @. zf.px = zi.px
   @. zf.y = zi.y + zi.py * L / ps
   @. zf.py = zi.py
-  @. zf.z = zi.z - (1.0 + zi.pz) * (L / ps - L / (beami.beta_0 * et))
+  @. zf.z = zi.z - (1.0 + zi.pz) * (L / ps - L / (beta_0 * et))
   @. zf.pz = zi.pz
 
   return beamf
@@ -55,20 +57,22 @@ end # function track!(::Drift, ::Beam, ::Beam)
 track quadrupole
 
 
-### Arguments
+### Arguments`
   - `ele`   -- element of type `Symplectic.Quadrupole`
   - `beamf` -- final `Beam`
   - `beami` -- initial `Beam`
 
 ### Implementation
-This integrator uses the so-called Matrix-Kick-Matrix method to construct
+This integrator uses the so-called Matrix-Kick-Matrix method to implement
 an integrator accurate though second-order in the integration step-size.
 """
 function track!(ele::Symplectic.Quadrupole, beamf::Beam, beami::Beam)
   @assert !(beamf === beami) "Aliasing beamf === beami not allowed!"
   L = ele.L
 
-  k2_num = charge(species) * ele.B1 / ele.P0
+  # κ^2 (kappa-squared) = (q g / P0) / (1 + δ)
+  # numerator of κ^2
+  k2_num = chargeof(species) * ele.B1 / ele.P0
 
   trackQuadMx!(beamf, beami, k2_num, L / 2)
   trackQuadK!( beami, beamf, L)
@@ -83,30 +87,31 @@ end # function track!(::Quadrupole)
 
 track "matrix part" of quadrupole
 """
-function trackQuadMx!(beamf::Beam, beami::Beam, k2_num::Float64, s::Float64)
+function trackQuadMx!(beamf::Beam, beami::Beam, k2_num, s)
   zi = beami.z
-  zf = beamf.z:w
+  zf = beamf.z
+  focus   = k2_num >= 0  # horizontally focusing
+  defocus = k2_num <  0  # horizontally defocusing
 
+  @. p = 1 + zi.pz    # reduced momentum, P/P0 = 1 + δ
+  @. k2 = k2_num / p  # κ^2 for each particle
+  @. ks = sqrt(abs(k2)) * s  # |κ|s
+  @. xp = px / p  # x'
+  @. yp = py / p  # y'
 
-  @. p_red = 1 + zi.pz  # reduced momentum, P/P0 = 1 + δ
-  @. xp = px / p_red
-  @. yp = py / p_red
-  @. k2 = k2_num / p_red
-  @. ks = sqrt(abs(k2)) * s
-
-  @. cx =  (k2_num >= 0) * cos(ks)    + (k2_num < 0) * cosh(ks)
-  @. cy =  (k2_num >= 0) * cosh(ks)   + (k2_num < 0) * cos(ks)
-  @. sx =  (k2_num >= 0) * sincu(ks)  + (k2_num < 0) * sinch(ks)
-  @. sy =  (k2_num >= 0) * sinch(ks)  + (k2_num < 0) * sincu(ks)
-  @. sx2 = (k2_num >= 0) * sincu(2ks) + (k2_num < 0) * sinch(2ks)
-  @. sy2 = (k2_num >= 0) * sinch(2ks) + (k2_num < 0) * sincu(2ks)
-  @. sxz = (k2_num >= 0) * sin(ks)^2  + (k2_num < 0) * sinh(ks)^2
-  @. syz = (k2_num >= 0) * sinh(ks)^2 + (k2_num < 0) * sin(ks)^2
+  @. cx =  focus * cos(ks)    + defocus * cosh(ks)
+  @. cy =  focus * cosh(ks)   + defocus * cos(ks)
+  @. sx =  focus * sincu(ks)  + defocus * sinch(ks)
+  @. sy =  focus * sinch(ks)  + defocus * sincu(ks)
+  @. sx2 = focus * sincu(2ks) + defocus * sinch(2ks)
+  @. sy2 = focus * sinch(2ks) + defocus * sincu(2ks)
+  @. sxz = focus * sin(ks)^2  + defocus * sinh(ks)^2
+  @. syz = focus * sinh(ks)^2 + defocus * sin(ks)^2
 
   @. zf.x  = zi.x  * cx + xp * s * sx
-  @. zf.px = zi.px * cx - k2 * p_red * zi.x * s * sx
+  @. zf.px = zi.px * cx - k2 * p * zi.x * s * sx
   @. zf.y  = zi.y  * cy + yp * s * sy
-  @. zf.py = zi.py * cy + k2 * p_red * zi.y * s * sy
+  @. zf.py = zi.py * cy + k2 * p * zi.y * s * sy
   @. zf.z  = (zi.z - (s / 4) * (xp^2 * (1 + sx2) + yp^2 * (1 + sy2)
                                 + k2 * zi.x^2 * (1 - sx2) - k2 * zi.y^2 * (1 - sy2))
                    + (zi.x * xp * sxz - zi.y * yp * syz) / 2.)
@@ -122,30 +127,27 @@ end # function trackQuadMx
 track "remaining part" of quadrupole, a position kick
 
 ### Implementation
-The common factor that appears in the expressions for `zf.x` and `zf.y`
-originally had the generic form ``1 / \\sqrt{1 - A} - 1``, which suffers a
-loss of precision when ``|A| \\ll 1``. To combat that proplem, we rewrite
-it in the form ``A / (1 - A + \\sqrt{1-A})``---more complicated, but far
-more accurate.
+A common factor that appears in the expressions for `zf.x` and `zf.y`
+originally included a factor with the generic form ``1 - \\sqrt{1 - A}``,
+which suffers a loss of precision when ``|A| \\ll 1``. To combat that
+problem, we rewrite it in the form ``A / (1 + \\sqrt{1-A})``---more
+complicated, yes, but far more accurate.
 """
 function trackQuadK!(beamf::Beam, beami::Beam, s::Float64)
   zi = beami.z
   zf = beamf.z
 
-  tilde_m = mass(beami.species) / sr_pc(mass(beami.species), beami.beta_gamma_0)
-  β0 = sr_beta(mass(beami.species), beami.beta_gamma_0)
+  tilde_m = 1 / beami.beta_gamma_0
+  beta_0 = sr_beta(beami.beta_gamma_0)
 
-  @. ps = sqrt((1.0 + zi.pz)^2 - zi.px^2 - zi.py^2)
-  @. et = sqrt((1.0 + zi.pz)^2 + tilde_m^2)
-  @. p_red = 1 + zi.pz  # reduced momentum, P/P0 = 1 + δ
-  @. xp = px / p_red
-  @. yp = py / p_red
-  @. rp2 = xp^2 + yp^2
+  @. p = 1 + zi.pz  # reduced momentum, P/P0 = 1 + δ
+  @. ptr2 = px^r + py^2
+  @. ps = sqrt(p^2 - ptr2)
 
-  @. zf.x  = zi.x + s * xp * rp2 / (1 - rp2 + sqrt(1 - rp2))
-  @. zf.y  = zi.y + s * yp * rp2 / (1 - rp2 + sqrt(1 - rp2))
-  @. zf.z  = zi.z - s * (1 / sqrt(1 - rp2) - rp2 / 2
-                         - 1 / (β0 * sqrt(1 + (tilde_m / p_red)^2)))
+  @. zf.x  = zi.x + s * zi.px / p * ptr2 / (ps (p + ps))
+  @. zf.y  = zi.y + s * zi.py / p * ptr2 / (ps (p + ps))
+  @. zf.z  = zi.z - s * (p / ps - (1/2) * ptr2 / p^2
+                         - p / (β0 * sqrt(p^2 + tilde_m^2)))
   @. zf.px = zi.px
   @. zf.py = zi.py
   @. zf.pz = zi.pz
